@@ -83,10 +83,6 @@ button {
   overscroll-behavior-x: contain;
 }
 
-/* the fixed demo bar respects the iPhone home indicator */
-.safe-bottom {
-  padding-bottom: calc(12px + env(safe-area-inset-bottom, 0px));
-}
 .safe-x {
   padding-left: calc(16px + env(safe-area-inset-left, 0px));
   padding-right: calc(16px + env(safe-area-inset-right, 0px));

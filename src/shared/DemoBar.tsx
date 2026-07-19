@@ -32,23 +32,24 @@ export default function DemoBar({
 
   return (
     <div
-      className="demobar safe-bottom"
+      className="demobar"
       style={{
         position: "fixed",
-        left: 0,
-        right: 0,
-        bottom: 0,
+        // A FLOATING panel, held clear of the very bottom edge. Flush-to-zero
+        // gets swallowed by OS chrome (the Windows taskbar, the iOS home bar)
+        // whenever the browser window extends behind it.
+        left: "max(12px, env(safe-area-inset-left, 0px))",
+        right: "max(12px, env(safe-area-inset-right, 0px))",
+        bottom: "calc(14px + env(safe-area-inset-bottom, 0px))",
         background: "#0A0B0D",
-        borderTop: "1px solid #2E3238",
-        // lifts the bar off the content so it is never mistaken for page end
-        boxShadow: "0 -10px 28px rgba(0,0,0,.30)",
-        paddingTop: 12,
-        paddingLeft: "max(16px, env(safe-area-inset-left, 0px))",
-        paddingRight: "max(16px, env(safe-area-inset-right, 0px))",
+        border: "1px solid #2E3238",
+        borderRadius: 10,
+        boxShadow: "0 14px 40px rgba(0,0,0,.45)",
+        padding: "10px 14px",
         display: "flex",
         alignItems: "center",
         gap: 10,
-        zIndex: 80,
+        zIndex: 90,
         flexWrap: "wrap",
       }}
     >

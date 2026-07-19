@@ -36,9 +36,9 @@ export default function App() {
       style={{
         minHeight: "100vh",
         background: WASH,
-        // clears the fixed demo bar (taller on mobile, where the disclaimer
-        // occupies its own line) plus the iPhone home indicator
-        paddingBottom: "calc(112px + env(safe-area-inset-bottom, 0px))",
+        // clears the floating demo bar (taller on mobile, where the disclaimer
+        // occupies its own line) plus any OS chrome at the bottom edge
+        paddingBottom: "calc(130px + env(safe-area-inset-bottom, 0px))",
       }}
     >
       <TopBar role={role} setRole={changeRole} />
