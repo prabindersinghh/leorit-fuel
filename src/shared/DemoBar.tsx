@@ -40,7 +40,10 @@ export default function DemoBar({
         // whenever the browser window extends behind it.
         left: "max(12px, env(safe-area-inset-left, 0px))",
         right: "max(12px, env(safe-area-inset-right, 0px))",
-        bottom: "calc(14px + env(safe-area-inset-bottom, 0px))",
+        // Sits well clear of the bottom edge. A maximised browser window on
+        // Windows extends behind the taskbar, so anything near bottom:0 gets
+        // covered — this keeps the controls reachable regardless of OS chrome.
+        bottom: "calc(72px + env(safe-area-inset-bottom, 0px))",
         background: "#0A0B0D",
         border: "1px solid #2E3238",
         borderRadius: 10,

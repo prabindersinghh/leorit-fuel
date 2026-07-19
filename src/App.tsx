@@ -38,7 +38,7 @@ export default function App() {
         background: WASH,
         // clears the floating demo bar (taller on mobile, where the disclaimer
         // occupies its own line) plus any OS chrome at the bottom edge
-        paddingBottom: "calc(130px + env(safe-area-inset-bottom, 0px))",
+        paddingBottom: "calc(190px + env(safe-area-inset-bottom, 0px))",
       }}
     >
       <TopBar role={role} setRole={changeRole} />
