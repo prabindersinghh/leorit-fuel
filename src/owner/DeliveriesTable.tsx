@@ -117,7 +117,7 @@ export default function DeliveriesTable({
             className="tnum"
             style={{
               fontFamily: FONT_DISPLAY,
-              fontSize: 52,
+              fontSize: "clamp(36px, 9vw, 52px)",
               fontWeight: 700,
               color: BAD,
               letterSpacing: -2,
@@ -149,7 +149,10 @@ export default function DeliveriesTable({
         clears it.
       </div>
 
-      <div style={{ overflowX: "auto" }}>
+      {/* the table keeps its full column set and scrolls sideways inside this
+          container — it never widens the page, and no column is dropped
+          because the owner may forward this table to his supplier */}
+      <div className="scroll-x">
         <table
           style={{
             width: "100%",

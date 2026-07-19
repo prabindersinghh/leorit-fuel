@@ -37,9 +37,10 @@ export default function WhatsAppToast({
       aria-label="WhatsApp message"
       style={{
         position: "fixed",
-        right: 22,
-        bottom: 96,
-        width: 328,
+        right: "max(14px, env(safe-area-inset-right, 0px))",
+        bottom: "calc(96px + env(safe-area-inset-bottom, 0px))",
+        // 328px on desktop; never wider than the phone screen
+        width: "min(328px, calc(100vw - 28px))",
         borderRadius: 12,
         overflow: "hidden",
         boxShadow: "0 18px 50px rgba(0,0,0,.30)",

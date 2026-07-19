@@ -50,7 +50,13 @@ export default function OperatorView({ sim }: { sim: Sim }) {
   const statusText = stale ? "Reading not live" : statusWordText;
 
   return (
-    <div style={{ maxWidth: 470, margin: "0 auto", padding: "30px 18px" }}>
+    <div
+      style={{
+        maxWidth: 470,
+        margin: "0 auto",
+        padding: "clamp(18px, 5vw, 30px) clamp(12px, 4vw, 18px)",
+      }}
+    >
       <p
         style={{
           textAlign: "center",
@@ -80,7 +86,8 @@ export default function OperatorView({ sim }: { sim: Sim }) {
         <div
           style={{
             fontFamily: FONT_DISPLAY,
-            fontSize: 78,
+            // 78px on desktop (unchanged), scales down on narrow phones
+            fontSize: "clamp(52px, 17vw, 78px)",
             fontWeight: 700,
             letterSpacing: -3,
             lineHeight: 1,
@@ -204,7 +211,14 @@ export default function OperatorView({ sim }: { sim: Sim }) {
         )}
       </div>
 
-      <div style={{ display: "flex", gap: 12, marginTop: 12 }}>
+      <div
+        style={{
+          display: "flex",
+          gap: 12,
+          marginTop: 12,
+          flexWrap: "wrap", // both tiles keep a readable width on small phones
+        }}
+      >
         <Stat
           label="Days of fuel left"
           value={stale ? "—" : String(daysLeft)}
@@ -334,7 +348,8 @@ function Stat({
   return (
     <div
       style={{
-        flex: 1,
+        flex: "1 1 130px", // wraps to full width only when truly cramped
+        minWidth: 130,
         background: PAPER,
         border: "1px solid " + RULE,
         borderRadius: 6,

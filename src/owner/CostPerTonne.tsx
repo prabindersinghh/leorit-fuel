@@ -58,7 +58,7 @@ export default function CostPerTonne({
               className="tnum"
               style={{
                 fontFamily: FONT_DISPLAY,
-                fontSize: 54,
+                fontSize: "clamp(38px, 10vw, 54px)",
                 fontWeight: 700,
                 letterSpacing: -2,
                 lineHeight: 1,
@@ -99,7 +99,7 @@ export default function CostPerTonne({
         title="Production against fuel"
         sub="Days when the two drift apart are worth a second look — not an accusation, a prompt."
       >
-        <div style={{ overflowX: "auto" }}>
+        <div className="scroll-x">
           <table
             style={{
               width: "100%",

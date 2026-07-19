@@ -54,14 +54,22 @@ export default function OwnerView({ sim }: { sim: Sim }) {
   ];
 
   return (
-    <div style={{ maxWidth: 1120, margin: "0 auto", padding: "22px 20px" }}>
+    <div
+      style={{
+        maxWidth: 1120,
+        margin: "0 auto",
+        padding: "22px clamp(12px, 3vw, 20px)",
+      }}
+    >
+      {/* tabs scroll sideways on a phone rather than wrapping into a
+          two-line stack that pushes the content down */}
       <div
+        className="scroll-x"
         style={{
           display: "flex",
           gap: 4,
           borderBottom: "1px solid " + RULE,
           marginBottom: 20,
-          flexWrap: "wrap",
         }}
       >
         {TABS.map(([k, l]) => (
@@ -79,6 +87,8 @@ export default function OwnerView({ sim }: { sim: Sim }) {
               cursor: "pointer",
               marginBottom: -1,
               fontFamily: FONT_DISPLAY,
+              flex: "0 0 auto",
+              whiteSpace: "nowrap",
             }}
           >
             {l}
@@ -263,6 +273,8 @@ function KPI({
         border: "1px solid " + (accent ? INK : RULE),
         borderRadius: 6,
         padding: 16,
+        minWidth: 0, // lets the tile shrink inside the grid instead of clipping
+        overflow: "hidden",
       }}
     >
       <div
@@ -280,7 +292,7 @@ function KPI({
         className="tnum"
         style={{
           fontFamily: FONT_DISPLAY,
-          fontSize: big ? 34 : 30,
+          fontSize: big ? "clamp(26px, 7.5vw, 34px)" : "clamp(24px, 7vw, 30px)",
           fontWeight: 800,
           marginTop: 6,
           letterSpacing: -1,
@@ -357,6 +369,7 @@ function Row({ k, v, strong }: { k: string; v: string; strong?: boolean }) {
         borderBottom: "1px solid " + RULE,
         fontSize: 13.5,
         gap: 12,
+        flexWrap: "wrap", // long values drop to their own line instead of clipping
       }}
     >
       <span style={{ color: MUTE }}>{k}</span>

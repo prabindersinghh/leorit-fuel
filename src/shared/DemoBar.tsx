@@ -32,6 +32,7 @@ export default function DemoBar({
 
   return (
     <div
+      className="demobar safe-bottom"
       style={{
         position: "fixed",
         left: 0,
@@ -39,7 +40,9 @@ export default function DemoBar({
         bottom: 0,
         background: "#0A0B0D",
         borderTop: "1px solid #2E3238",
-        padding: "12px 22px",
+        paddingTop: 12,
+        paddingLeft: "max(16px, env(safe-area-inset-left, 0px))",
+        paddingRight: "max(16px, env(safe-area-inset-right, 0px))",
         display: "flex",
         alignItems: "center",
         gap: 10,
@@ -60,26 +63,34 @@ export default function DemoBar({
       >
         Demo controls
       </span>
-      <button onClick={() => skipDays(3)} style={btn(STEEL)}>
-        Skip 3 days
-      </button>
-      <button onClick={tankerArrives} style={btn(GOOD)}>
-        Tanker arrives
-      </button>
-      <button onClick={meterOffline} style={btn(WARN)}>
-        Meter offline
-      </button>
-      <button onClick={nightTheft} style={btn(BAD)}>
-        Fuel taken at night
-      </button>
-      <button onClick={reset} style={btn("transparent", "#3A3F47")}>
-        Reset
-      </button>
+      {/* on narrow phones these scroll sideways together, keeping full tap size */}
+      <div className="demobar-scroll" style={{ display: "contents" }}>
+        <button onClick={() => skipDays(3)} style={btn(STEEL)}>
+          Skip 3 days
+        </button>
+        <button onClick={tankerArrives} style={btn(GOOD)}>
+          Tanker arrives
+        </button>
+        <button onClick={meterOffline} style={btn(WARN)}>
+          Meter offline
+        </button>
+        <button onClick={nightTheft} style={btn(BAD)}>
+          Fuel taken at night
+        </button>
+        <button onClick={reset} style={btn("transparent", "#3A3F47")}>
+          Reset
+        </button>
+      </div>
+      {/* The disclaimer STAYS on every screen size. On desktop it sits at the
+          far right of the row; on mobile it drops to its own full-width line
+          beneath the controls. It is never hidden and never truncated. */}
       <span
+        className="demobar-note"
         style={{
           marginLeft: "auto",
-          color: "#4A4F57",
+          color: "#6E7278",
           fontSize: 11,
+          lineHeight: 1.35,
         }}
       >
         Simulated data. Nothing here is connected to a live tank.

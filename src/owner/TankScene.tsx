@@ -1,33 +1,30 @@
 import { Suspense, useMemo, useRef, useState } from "react";
-import { Canvas, useFrame } from "@react-three/fiber";
-import {
-  ContactShadows,
-  Environment,
-  OrbitControls,
-  Html,
-} from "@react-three/drei";
+import { Canvas, useFrame, type ThreeEvent } from "@react-three/fiber";
+import { ContactShadows, Environment, Html } from "@react-three/drei";
 import * as THREE from "three";
 import { CAP, fmt } from "../theme";
 
 /* ────────────────────────────────────────────────────────────
    THE 3D TANK — owner dashboard only, lazy loaded.
-   A horizontal cylindrical steel tank, cut away, buried under a
-   concrete parking slab. The diesel inside is bound to app state:
-   when the level drops the fuel drops; when a tanker arrives you
-   watch it fill. This is the product, not decoration.
 
-   Realism budget spent on the STEEL (metalness/roughness, env
-   reflections, contact shadows). The diesel is a dark, slightly
-   glossy standard material with a subtle animated surface —
-   NOT MeshTransmissionMaterial. Frames beat fidelity.
-   Monochrome only; the single status tint is allowed on the
-   measured-delta callout and nowhere else.
+   A horizontal cylindrical steel diesel tank, cut away along the
+   front, sitting in an excavated bay below a concrete parking slab.
+   Built with real tank anatomy so it reads as equipment, not a
+   primitive: dished end caps, saddle supports, circumferential
+   ribs, a manway with bolted cover, a fill point, a vent stack and
+   the level probe descending through the top boss.
+
+   The diesel is bound to app state: level drops, fuel drops; tanker
+   arrives, you watch it fill.
+
+   INTERACTIVE: drag to turn the tank, hover the labelled parts.
+   Realism budget on the STEEL. Diesel stays a standard material —
+   frames beat fidelity.
    ──────────────────────────────────────────────────────────── */
 
-// tank geometry (metres) — believable ~10,000 L: Ø1.9m × ~4m
-const R = 0.95;
-const LEN = 4.0;
-const WALL = 0.04;
+const R = 0.95; // tank radius (m)
+const LEN = 4.2; // barrel length (m)
+const WALL = 0.045;
 
 function prefersReducedMotion() {
   return (
@@ -36,18 +33,37 @@ function prefersReducedMotion() {
   );
 }
 
-/* the fuel body: a cylinder clipped to the current fill height.
-   Fill fraction maps directly to level/capacity. The clip plane is
-   the fuel surface. A gentle animated ripple sells "liquid" cheaply. */
+/* ── materials, defined once ─────────────────────────────────── */
+const steelShell = {
+  color: "#9aa1a9",
+  metalness: 0.86,
+  roughness: 0.42,
+  envMapIntensity: 1.2,
+};
+const steelDark = {
+  color: "#59606a",
+  metalness: 0.8,
+  roughness: 0.55,
+  envMapIntensity: 0.8,
+};
+const steelBright = {
+  color: "#c3c9d0",
+  metalness: 0.95,
+  roughness: 0.22,
+  envMapIntensity: 1.35,
+};
+
+/* ── the diesel ──────────────────────────────────────────────── */
 function Fuel({ fillFrac }: { fillFrac: number }) {
   const surfRef = useRef<THREE.Mesh>(null);
+  const bodyRef = useRef<THREE.Mesh>(null);
   const target = useRef(fillFrac);
   const current = useRef(fillFrac);
   const reduced = prefersReducedMotion();
   target.current = fillFrac;
 
-  // fuel surface Y within the tank (tank centre at y=0, radius R)
-  const surfaceY = (frac: number) => -R + WALL + (2 * R - 2 * WALL) * frac;
+  const inner = R - WALL - 0.012;
+  const surfaceY = (f: number) => -inner + 2 * inner * f;
 
   const clipPlane = useMemo(
     () => new THREE.Plane(new THREE.Vector3(0, -1, 0), 0),
@@ -55,56 +71,54 @@ function Fuel({ fillFrac }: { fillFrac: number }) {
   );
 
   useFrame((state) => {
-    // ease the fill toward target (snaps under reduced motion)
     current.current = reduced
       ? target.current
-      : current.current + (target.current - current.current) * 0.08;
+      : current.current + (target.current - current.current) * 0.075;
     const y = surfaceY(current.current);
     clipPlane.constant = y;
     if (surfRef.current) {
-      surfRef.current.position.y = y;
-      // subtle ripple on the surface, very low amplitude
-      if (!reduced) {
-        const t = state.clock.elapsedTime;
-        surfRef.current.position.y =
-          y + Math.sin(t * 1.4) * 0.004 + Math.sin(t * 2.3) * 0.002;
-      }
+      const t = state.clock.elapsedTime;
+      surfRef.current.position.y = reduced
+        ? y
+        : y + Math.sin(t * 1.3) * 0.0035 + Math.sin(t * 2.1) * 0.0018;
+      // width of the liquid surface follows the circular cross-section
+      const f = Math.max(0.001, Math.min(0.999, current.current));
+      const halfChord = Math.sqrt(Math.max(0, 1 - Math.pow(2 * f - 1, 2)));
+      surfRef.current.scale.z = Math.max(0.02, halfChord);
     }
+    if (bodyRef.current) bodyRef.current.visible = current.current > 0.005;
   });
 
-  // fuel body: the inner cylinder, clipped from above at the surface plane.
-  // The surface is a plane sized to span the tank, clipped to the same level,
-  // catching light so the diesel reads as a liquid top, not a black void.
-  const rr = R - WALL - 0.01;
   return (
     <group>
-      <mesh castShadow={false} receiveShadow rotation={[0, 0, Math.PI / 2]}>
-        <cylinderGeometry args={[rr, rr, LEN - WALL * 2, 64, 1]} />
+      {/* the body of the diesel, clipped at the surface */}
+      <mesh ref={bodyRef} rotation={[0, 0, Math.PI / 2]} receiveShadow>
+        <cylinderGeometry args={[inner, inner, LEN - WALL * 2, 72, 1]} />
         <meshStandardMaterial
-          color="#3b454f"
-          metalness={0.25}
-          roughness={0.38}
-          emissive="#151b21"
-          emissiveIntensity={0.6}
+          color="#39424c"
+          metalness={0.22}
+          roughness={0.36}
+          emissive="#161d24"
+          emissiveIntensity={0.55}
           clippingPlanes={[clipPlane]}
           clipShadows
-          envMapIntensity={0.9}
+          envMapIntensity={0.85}
         />
       </mesh>
-      {/* the fuel surface — spans the full width, glossy so it reads as liquid */}
+      {/* the liquid surface — scaled to the chord width at this fill level */}
       <mesh
         ref={surfRef}
         rotation={[-Math.PI / 2, 0, 0]}
         position={[0, surfaceY(fillFrac), 0]}
       >
-        <planeGeometry args={[LEN - WALL * 2, 2 * rr * 0.985]} />
+        <planeGeometry args={[LEN - WALL * 2, 2 * inner]} />
         <meshStandardMaterial
-          color="#525d68"
-          metalness={0.55}
-          roughness={0.12}
-          emissive="#1a2128"
-          emissiveIntensity={0.55}
-          envMapIntensity={1.8}
+          color="#5b6672"
+          metalness={0.6}
+          roughness={0.1}
+          emissive="#1d252d"
+          emissiveIntensity={0.5}
+          envMapIntensity={2.0}
           side={THREE.DoubleSide}
         />
       </mesh>
@@ -112,160 +126,257 @@ function Fuel({ fillFrac }: { fillFrac: number }) {
   );
 }
 
-function SteelTank() {
-  // Cutaway: draw the tank as a near-full cylinder with the top-front wedge
-  // omitted via thetaLength, so we look down into the fuel.
-  //
-  // CylinderGeometry arc lives in the local XZ plane; theta=0 points +Z,
-  // increasing toward +X. After the group's z-rotation of π/2 the axis lies
-  // along X and this arc becomes the vertical YZ cross-section we see. We
-  // remove the wedge centred on the up/front direction so the opening faces
-  // the camera (which sits front-right-above).
-  // Remove a large wedge covering the top AND the front-facing lower quarter,
-  // so the fuel sitting low in the tank is visible through the front, not
-  // hidden behind the lower shell. Gap centred on +Z (straight at the camera).
-  const openAngle = Math.PI * 0.92; // wide wedge: top through front
-  const center = 0; // +Z — straight toward the camera, spanning up and down
-  const start = center + openAngle / 2;
+/* ── the tank shell: barrel + dished caps + ribs + fittings ──── */
+function TankBody() {
+  // cutaway wedge faces the camera (+Z), spanning top through front
+  const openAngle = Math.PI * 0.78;
+  const start = openAngle / 2;
   const sweep = Math.PI * 2 - openAngle;
 
   return (
     <group>
-      {/* outer steel shell (cutaway) */}
+      {/* outer barrel, cut away */}
       <mesh rotation={[0, 0, Math.PI / 2]} castShadow receiveShadow>
-        <cylinderGeometry
-          args={[R, R, LEN, 72, 1, true, start, sweep]}
-        />
-        <meshStandardMaterial
-          color="#8a9099"
-          metalness={0.92}
-          roughness={0.4}
-          side={THREE.DoubleSide}
-          envMapIntensity={1.15}
-        />
+        <cylinderGeometry args={[R, R, LEN, 80, 1, true, start, sweep]} />
+        <meshStandardMaterial {...steelShell} side={THREE.DoubleSide} />
       </mesh>
-      {/* inner wall (slightly darker) to give the shell thickness */}
+      {/* inner liner, so the shell reads as having thickness */}
       <mesh rotation={[0, 0, Math.PI / 2]}>
         <cylinderGeometry
-          args={[R - WALL, R - WALL, LEN - 0.001, 72, 1, true, start, sweep]}
-        />
-        <meshStandardMaterial
-          color="#3f454d"
-          metalness={0.7}
-          roughness={0.55}
-          side={THREE.BackSide}
-          envMapIntensity={0.7}
-        />
-      </mesh>
-      {/* end caps */}
-      {[-1, 1].map((s) => (
-        <mesh
-          key={s}
-          position={[(s * LEN) / 2, 0, 0]}
-          rotation={[0, 0, Math.PI / 2]}
-          castShadow
-        >
-          <circleGeometry args={[R, 64]} />
-          <meshStandardMaterial
-            color="#7c828b"
-            metalness={0.9}
-            roughness={0.45}
-            side={THREE.DoubleSide}
-            envMapIntensity={1.0}
+          args={[R - WALL, R - WALL, LEN - 0.002, 80, 1, true, start, sweep]}
           />
+        <meshStandardMaterial {...steelDark} side={THREE.BackSide} />
+      </mesh>
+
+      {/* dished end caps — a real tank is never flat-ended */}
+      {[-1, 1].map((s) => (
+        <group key={s} position={[(s * LEN) / 2, 0, 0]}>
+          <mesh
+            rotation={[0, 0, s === 1 ? -Math.PI / 2 : Math.PI / 2]}
+            castShadow
+          >
+            <sphereGeometry
+              args={[R, 48, 32, 0, Math.PI * 2, 0, Math.PI * 0.32]}
+            />
+            <meshStandardMaterial {...steelShell} side={THREE.DoubleSide} />
+          </mesh>
+          {/* the weld collar where the cap meets the barrel */}
+          <mesh rotation={[0, 0, Math.PI / 2]}>
+            <torusGeometry args={[R, 0.022, 12, 64]} />
+            <meshStandardMaterial {...steelBright} />
+          </mesh>
+        </group>
+      ))}
+
+      {/* circumferential reinforcing ribs — swept to match the cutaway so they
+          wrap only the steel that is actually there */}
+      {[-1.05, 1.05].map((x) => (
+        <mesh
+          key={x}
+          position={[x, 0, 0]}
+          rotation={[0, Math.PI / 2, start + Math.PI / 2]}
+        >
+          <torusGeometry args={[R + 0.014, 0.028, 10, 48, sweep]} />
+          <meshStandardMaterial {...steelDark} />
         </mesh>
       ))}
-      {/* cut edges — thin steel rings at the two lips of the cutaway */}
-      {[start, start + sweep].map((a, i) => {
-        const y = Math.sin(a) * R;
-        const z = Math.cos(a) * R;
-        return (
-          <mesh
-            key={i}
-            position={[0, y, z]}
-            rotation={[0, 0, Math.PI / 2]}
-          >
-            <boxGeometry args={[LEN, WALL, 0.012]} />
-            <meshStandardMaterial
-              color="#aeb4bc"
-              metalness={0.95}
-              roughness={0.3}
-              envMapIntensity={1.2}
-            />
-          </mesh>
-        );
-      })}
+
+      {/* the cut lips — bright machined steel edges along the cutaway */}
+      {[start, start + sweep].map((a, i) => (
+        <mesh
+          key={i}
+          position={[0, Math.sin(a) * (R - WALL / 2), Math.cos(a) * (R - WALL / 2)]}
+          rotation={[0, 0, Math.PI / 2]}
+        >
+          <boxGeometry args={[LEN, WALL, 0.014]} />
+          <meshStandardMaterial {...steelBright} />
+        </mesh>
+      ))}
     </group>
   );
 }
 
-/* the sensor probe descending from the tank top into the fuel */
-function Probe({ fillFrac }: { fillFrac: number }) {
-  const bossY = R + 0.02;
-  const tipY = -R + 0.08 + (2 * R) * 0.05; // reaches near the bottom
-  const height = bossY - tipY;
-  const midY = (bossY + tipY) / 2;
-  void fillFrac;
-  return (
-    <group position={[0.2, 0, 0]}>
-      {/* boss / gland on the tank top */}
-      <mesh position={[0, R + 0.03, 0]} castShadow>
-        <cylinderGeometry args={[0.06, 0.08, 0.1, 24]} />
-        <meshStandardMaterial color="#2b2f35" metalness={0.8} roughness={0.5} />
-      </mesh>
-      {/* the probe rod */}
-      <mesh position={[0, midY, 0]}>
-        <cylinderGeometry args={[0.014, 0.014, height, 20]} />
-        <meshStandardMaterial
-          color="#c2c7cd"
-          metalness={0.95}
-          roughness={0.25}
-          envMapIntensity={1.1}
-        />
-      </mesh>
-      {/* probe tip */}
-      <mesh position={[0, tipY, 0]}>
-        <sphereGeometry args={[0.02, 16, 16]} />
-        <meshStandardMaterial color="#e6e9ec" metalness={0.9} roughness={0.2} />
-      </mesh>
-    </group>
-  );
-}
-
-/* The concrete parking slab and the ground the tank is buried in.
-   A single ground plane sits at the tank crown height, BEHIND the cutaway,
-   so it reads as the parking surface the tank is sunk under — never a plank
-   slicing through the model. A darker soil wall behind grounds it as buried. */
-function Slab() {
-  const groundY = R + 0.02; // parking surface, just above the tank crown
+/* saddle supports the tank rests on */
+function Saddles() {
   return (
     <group>
-      {/* the parking slab — only the BACK half, so the excavated front stays
-          open for us to look down into the tank. The cut edge faces us. */}
-      <mesh
-        position={[0, groundY, -2.3]}
-        rotation={[-Math.PI / 2, 0, 0]}
-        receiveShadow
+      {[-1.35, 1.35].map((x) => (
+        <group key={x} position={[x, 0, 0]}>
+          <mesh position={[0, -R - 0.16, 0]} castShadow receiveShadow>
+            <boxGeometry args={[0.24, 0.34, 1.5]} />
+            <meshStandardMaterial color="#4a5058" metalness={0.5} roughness={0.75} />
+          </mesh>
+          <mesh position={[0, -R - 0.35, 0]} receiveShadow>
+            <boxGeometry args={[0.34, 0.08, 1.75]} />
+            <meshStandardMaterial color="#3d434a" metalness={0.4} roughness={0.85} />
+          </mesh>
+        </group>
+      ))}
+    </group>
+  );
+}
+
+/* top fittings: manway, fill point, vent stack */
+function Fittings({
+  onHover,
+}: {
+  onHover: (label: string | null, e?: ThreeEvent<PointerEvent>) => void;
+}) {
+  const hoverIn = (label: string) => (e: ThreeEvent<PointerEvent>) => {
+    e.stopPropagation();
+    document.body.style.cursor = "pointer";
+    onHover(label, e);
+  };
+  const hoverOut = (e: ThreeEvent<PointerEvent>) => {
+    e.stopPropagation();
+    document.body.style.cursor = "grab";
+    onHover(null);
+  };
+
+  return (
+    <group>
+      {/* manway with bolted cover */}
+      <group
+        position={[-1.0, R - 0.04, 0.16]}
+        onPointerOver={hoverIn("Manway — inspection access")}
+        onPointerOut={hoverOut}
       >
-        <planeGeometry args={[LEN + 4, 3.2]} />
-        <meshStandardMaterial color="#6e7178" metalness={0.03} roughness={0.97} />
+        <mesh castShadow>
+          <cylinderGeometry args={[0.26, 0.28, 0.12, 32]} />
+          <meshStandardMaterial {...steelDark} />
+        </mesh>
+        <mesh position={[0, 0.08, 0]} castShadow>
+          <cylinderGeometry args={[0.3, 0.3, 0.05, 32]} />
+          <meshStandardMaterial {...steelShell} />
+        </mesh>
+        {/* bolt ring */}
+        {Array.from({ length: 10 }).map((_, i) => {
+          const a = (i / 10) * Math.PI * 2;
+          return (
+            <mesh
+              key={i}
+              position={[Math.cos(a) * 0.25, 0.115, Math.sin(a) * 0.25]}
+            >
+              <cylinderGeometry args={[0.022, 0.022, 0.03, 8]} />
+              <meshStandardMaterial {...steelBright} />
+            </mesh>
+          );
+        })}
+      </group>
+
+      {/* fill point — where the tanker couples up */}
+      <group
+        position={[1.35, R - 0.02, 0.1]}
+        onPointerOver={hoverIn("Fill point — tanker couples here")}
+        onPointerOut={hoverOut}
+      >
+        <mesh castShadow>
+          <cylinderGeometry args={[0.13, 0.15, 0.2, 24]} />
+          <meshStandardMaterial {...steelDark} />
+        </mesh>
+        <mesh position={[0, 0.14, 0]} castShadow>
+          <cylinderGeometry args={[0.16, 0.16, 0.07, 24]} />
+          <meshStandardMaterial {...steelBright} />
+        </mesh>
+      </group>
+
+      {/* vent stack */}
+      <group
+        position={[1.75, R + 0.02, -0.28]}
+        onPointerOver={hoverIn("Vent — pressure relief")}
+        onPointerOut={hoverOut}
+      >
+        <mesh position={[0, 0.16, 0]} castShadow>
+          <cylinderGeometry args={[0.035, 0.035, 0.32, 16]} />
+          <meshStandardMaterial {...steelShell} />
+        </mesh>
+        <mesh position={[0, 0.34, 0]} rotation={[0, 0, Math.PI / 2]}>
+          <cylinderGeometry args={[0.05, 0.05, 0.1, 16]} />
+          <meshStandardMaterial {...steelDark} />
+        </mesh>
+      </group>
+    </group>
+  );
+}
+
+/* the level probe — the thing that makes the whole product work */
+function Probe({
+  onHover,
+}: {
+  onHover: (label: string | null) => void;
+}) {
+  const bossY = R - 0.02;
+  const tipY = -R + 0.1;
+  const rodLen = bossY - tipY; // the rod spans crown to just above the floor
+  return (
+    <group
+      position={[0.15, 0, -0.1]}
+      onPointerOver={(e) => {
+        e.stopPropagation();
+        document.body.style.cursor = "pointer";
+        onHover("Level probe — the measurement");
+      }}
+      onPointerOut={(e) => {
+        e.stopPropagation();
+        document.body.style.cursor = "grab";
+        onHover(null);
+      }}
+    >
+      {/* gland / boss on the crown */}
+      <mesh position={[0, bossY + 0.06, 0]} castShadow>
+        <cylinderGeometry args={[0.075, 0.095, 0.14, 24]} />
+        <meshStandardMaterial {...steelDark} />
       </mesh>
-      {/* the slab's cut edge facing us — a thin concrete lip, the trench wall */}
-      <mesh position={[0, groundY - 0.16, -0.7]} receiveShadow castShadow>
-        <boxGeometry args={[LEN + 4, 0.32, 0.14]} />
-        <meshStandardMaterial color="#7a7d83" metalness={0.03} roughness={0.95} />
+      {/* head unit */}
+      <mesh position={[0, bossY + 0.26, 0]} castShadow>
+        <boxGeometry args={[0.17, 0.26, 0.17]} />
+        <meshStandardMaterial color="#2a2f36" metalness={0.55} roughness={0.6} />
       </mesh>
-      {/* excavation / soil wall behind, dark, so the tank reads as sunk in */}
-      <mesh position={[0, groundY - 1.1, -3.85]}>
-        <boxGeometry args={[LEN + 6, 2.4, 0.1]} />
-        <meshStandardMaterial color="#2a2d32" metalness={0} roughness={1} />
+      {/* the rod — spans the tank interior only, never through the shell */}
+      <mesh position={[0, (bossY + tipY) / 2, 0]}>
+        <cylinderGeometry args={[0.016, 0.016, rodLen, 20]} />
+        <meshStandardMaterial {...steelBright} />
+      </mesh>
+      <mesh position={[0, tipY, 0]}>
+        <sphereGeometry args={[0.026, 16, 16]} />
+        <meshStandardMaterial {...steelBright} />
       </mesh>
     </group>
   );
 }
 
-/* the measured-delta callout on the model during a fill — the ONE place
-   a status tint touches the 3D */
+/* the excavation the tank sits in, and the parking slab above */
+function Groundworks() {
+  const slabY = R + 0.5; // ground level, just clear of the tank crown fittings
+  return (
+    <group>
+      {/* concrete parking slab, back half only — the front is the cutaway view */}
+      <mesh position={[0, slabY, -2.4]} rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
+        <planeGeometry args={[LEN + 14, 3.2]} />
+        <meshStandardMaterial color="#6f747b" metalness={0.02} roughness={0.98} />
+      </mesh>
+      {/* the slab's cut edge, facing us — the trench lip */}
+      <mesh position={[0, slabY - 0.1, -0.82]} castShadow receiveShadow>
+        <boxGeometry args={[LEN + 14, 0.2, 0.26]} />
+        <meshStandardMaterial color="#7e838a" metalness={0.02} roughness={0.95} />
+      </mesh>
+      {/* bay floor the saddles sit on */}
+      <mesh position={[0, -R - 0.4, -0.6]} rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
+        <planeGeometry args={[LEN + 12, 5]} />
+        <meshStandardMaterial color="#4c5157" metalness={0.02} roughness={1} />
+      </mesh>
+      {/* back wall of the excavation — oversized so its edges never cut
+          across the frame at a glancing angle */}
+      <mesh position={[0, 0.1, -2.2]} receiveShadow>
+        <boxGeometry args={[LEN + 14, 5.2, 0.12]} />
+        <meshStandardMaterial color="#33383e" metalness={0} roughness={1} />
+      </mesh>
+    </group>
+  );
+}
+
+/* measured-delta callout during a fill — the one place a status tint
+   is allowed to touch the 3D */
 function DeltaBadge({
   fillFrac,
   delta,
@@ -274,20 +385,21 @@ function DeltaBadge({
   delta: number | null;
 }) {
   if (delta == null) return null;
-  const y = -R + WALL + (2 * R - 2 * WALL) * fillFrac;
+  const inner = R - WALL - 0.012;
+  const y = -inner + 2 * inner * fillFrac;
   return (
-    <Html position={[LEN / 2 + 0.15, y, 0]} distanceFactor={6} center>
+    <Html position={[LEN / 2 + 0.35, y + 0.1, 0]} center distanceFactor={7}>
       <div
         style={{
           background: "#B3261E",
           color: "#fff",
-          padding: "4px 9px",
+          padding: "5px 10px",
           borderRadius: 4,
           fontSize: 13,
           fontWeight: 800,
           fontFamily: "'Space Grotesk', sans-serif",
           whiteSpace: "nowrap",
-          boxShadow: "0 6px 18px rgba(0,0,0,.35)",
+          boxShadow: "0 8px 22px rgba(0,0,0,.4)",
           fontVariantNumeric: "tabular-nums",
         }}
       >
@@ -297,123 +409,119 @@ function DeltaBadge({
   );
 }
 
-/* the pre-fill reference line, shown during a fill */
+/* pre-fill reference line shown during a delivery */
 function ReferenceLine({ frac }: { frac: number | null }) {
   if (frac == null) return null;
-  const y = -R + WALL + (2 * R - 2 * WALL) * frac;
+  const inner = R - WALL - 0.012;
+  const y = -inner + 2 * inner * frac;
+  const f = Math.max(0.001, Math.min(0.999, frac));
+  const halfChord = Math.sqrt(Math.max(0, 1 - Math.pow(2 * f - 1, 2)));
   return (
     <mesh position={[0, y, 0]} rotation={[-Math.PI / 2, 0, 0]}>
-      <planeGeometry args={[LEN - WALL * 2, 2 * (R - WALL)]} />
+      <planeGeometry args={[LEN - WALL * 2, 2 * inner * halfChord]} />
       <meshBasicMaterial
         color="#B3261E"
         transparent
-        opacity={0.18}
+        opacity={0.22}
         side={THREE.DoubleSide}
       />
     </mesh>
   );
 }
 
-/* gently sway the camera across the front of the tank — a slow arc, clamped
-   so the cutaway never rotates out of view. Snaps to a fixed 3/4 view under
-   reduced motion. */
-function SwayRig() {
+/* ── the turntable: drag to rotate, gentle idle sway ─────────── */
+function Turntable({
+  children,
+  dragging,
+  angle,
+}: {
+  children: React.ReactNode;
+  dragging: React.MutableRefObject<boolean>;
+  angle: React.MutableRefObject<number>;
+}) {
+  const g = useRef<THREE.Group>(null);
   const reduced = prefersReducedMotion();
-  const radius = Math.hypot(3.4, 4.6); // keep the initial framing distance
-  const height = 3.6;
   useFrame((state) => {
-    const cam = state.camera;
-    const base = 0.62; // centre azimuth (front-right 3/4 view), radians
-    const amp = reduced ? 0 : 0.28; // gentle sway amplitude
-    const a = base + Math.sin(state.clock.elapsedTime * 0.12) * amp;
-    cam.position.x = Math.sin(a) * radius;
-    cam.position.z = Math.cos(a) * radius;
-    cam.position.y = height;
-    cam.lookAt(0, -0.1, 0);
+    if (!g.current) return;
+    const idle =
+      reduced || dragging.current
+        ? 0
+        : Math.sin(state.clock.elapsedTime * 0.14) * 0.16;
+    g.current.rotation.y = angle.current + idle;
   });
-  return null;
+  return <group ref={g}>{children}</group>;
 }
 
 function Scene({
   fillFrac,
   preFillFrac,
   delta,
+  dragging,
+  angle,
+  onHover,
 }: {
   fillFrac: number;
   preFillFrac: number | null;
   delta: number | null;
+  dragging: React.MutableRefObject<boolean>;
+  angle: React.MutableRefObject<number>;
+  onHover: (label: string | null) => void;
 }) {
   return (
     <>
-      {/* studio monochrome lighting: strong key + soft fill + rim, plus a
-          dedicated fill aimed into the cutaway so the diesel reads */}
-      <ambientLight intensity={0.55} />
+      <ambientLight intensity={0.5} />
       <directionalLight
-        position={[4, 7, 5]}
-        intensity={2.1}
+        position={[5, 8, 6]}
+        intensity={2.0}
         castShadow
         shadow-mapSize-width={1024}
         shadow-mapSize-height={1024}
+        shadow-bias={-0.0005}
       />
-      <directionalLight position={[-6, 4, -2]} intensity={0.7} />
-      <directionalLight position={[0, 3, 7]} intensity={0.9} />
-      {/* soft light dropped into the open front of the tank to lift the fuel */}
-      <pointLight position={[1.5, 1.2, 2.2]} intensity={0.9} distance={8} decay={2} />
+      <directionalLight position={[-6, 4, -2]} intensity={0.55} />
+      <directionalLight position={[0, 3, 8]} intensity={0.75} />
+      <pointLight position={[1.2, 0.9, 2.4]} intensity={0.7} distance={9} decay={2} />
 
-      {/* baked, in-code environment — no HDRI download. Sells the steel. */}
       <Environment resolution={128} background={false}>
-        <mesh scale={40}>
+        <mesh scale={45}>
           <sphereGeometry args={[1, 32, 32]} />
-          <meshBasicMaterial side={THREE.BackSide} color="#2c3138" />
+          <meshBasicMaterial side={THREE.BackSide} color="#2f343b" />
         </mesh>
-        <mesh position={[3, 6, 3]} scale={8}>
+        <mesh position={[4, 7, 4]} scale={9}>
           <planeGeometry />
-          <meshBasicMaterial color="#f2f4f7" />
+          <meshBasicMaterial color="#f4f6f8" />
         </mesh>
-        <mesh position={[-6, 3, -3]} scale={6}>
+        <mesh position={[-7, 3, -3]} scale={6}>
           <planeGeometry />
-          <meshBasicMaterial color="#9aa1a8" />
+          <meshBasicMaterial color="#99a0a8" />
         </mesh>
-        <mesh position={[0, 2, 6]} scale={7}>
+        <mesh position={[0, 2, 7]} scale={7}>
           <planeGeometry />
-          <meshBasicMaterial color="#c7ccd2" />
+          <meshBasicMaterial color="#ccd2d8" />
         </mesh>
       </Environment>
 
-      <group position={[0, 0.1, 0]}>
-        <Slab />
-        {/* the tank is tilted a touch on its long axis so the camera looks
-            down INTO the cutaway and sees the fuel surface, not just the rim */}
-        <group rotation={[0, 0, 0]}>
-          <SteelTank />
+      <group position={[0, 0.05, 0]}>
+        <Groundworks />
+        <Turntable dragging={dragging} angle={angle}>
+          <TankBody />
           <Fuel fillFrac={fillFrac} />
-          <Probe fillFrac={fillFrac} />
+          <Saddles />
+          <Fittings onHover={onHover} />
+          <Probe onHover={onHover} />
           <ReferenceLine frac={preFillFrac} />
           <DeltaBadge fillFrac={fillFrac} delta={delta} />
-        </group>
+        </Turntable>
       </group>
 
       <ContactShadows
-        position={[0, -R - 0.04, 0]}
+        position={[0, -R - 0.42, 0]}
         opacity={0.5}
-        scale={9}
-        blur={2.6}
-        far={4}
+        scale={11}
+        blur={2.8}
+        far={5}
         resolution={512}
         color="#000000"
-      />
-
-      {/* A slow, restrained sway across the FRONT of the tank — never a full
-          spin, so the cutaway always faces the viewer. Azimuth is clamped and
-          gently oscillated; feels like a display model turning on a desk. */}
-      <SwayRig />
-      <OrbitControls
-        enablePan={false}
-        enableZoom={false}
-        enableRotate={false}
-        target={[0, -0.1, 0]}
-        enableDamping
-        dampingFactor={0.06}
       />
     </>
   );
@@ -428,42 +536,145 @@ export default function TankScene({
   preFillLevel?: number | null;
   deltaLitres?: number | null;
 }) {
-  const [failed, setFailed] = useState(false);
-  const fillFrac = Math.max(0.01, Math.min(1, level / CAP));
-  const preFillFrac =
-    preFillLevel != null ? Math.max(0.01, Math.min(1, preFillLevel / CAP)) : null;
+  const [hover, setHover] = useState<string | null>(null);
+  const [hasDragged, setHasDragged] = useState(false);
+  const dragging = useRef(false);
+  const angle = useRef(0);
+  const lastX = useRef(0);
 
-  if (failed) return null; // OwnerView shows the 2D silhouette fallback
+  const fillFrac = Math.max(0, Math.min(1, level / CAP));
+  const preFillFrac =
+    preFillLevel != null ? Math.max(0, Math.min(1, preFillLevel / CAP)) : null;
+
+  const onDown = (e: React.PointerEvent) => {
+    dragging.current = true;
+    lastX.current = e.clientX;
+    (e.target as HTMLElement).setPointerCapture?.(e.pointerId);
+  };
+  const onMove = (e: React.PointerEvent) => {
+    if (!dragging.current) return;
+    const dx = e.clientX - lastX.current;
+    lastX.current = e.clientX;
+    angle.current += dx * 0.008;
+    if (Math.abs(dx) > 1 && !hasDragged) setHasDragged(true);
+  };
+  const onUp = (e: React.PointerEvent) => {
+    dragging.current = false;
+    (e.target as HTMLElement).releasePointerCapture?.(e.pointerId);
+  };
 
   return (
     <div
       style={{
+        position: "relative",
         width: "100%",
-        height: 340,
-        borderRadius: 6,
+        height: "clamp(260px, 42vw, 400px)",
+        borderRadius: 8,
         overflow: "hidden",
         background:
-          "linear-gradient(180deg, #3a4048 0%, #262b31 55%, #1b1f24 100%)",
+          "linear-gradient(180deg, #3d434b 0%, #282d34 55%, #1d2126 100%)",
+        cursor: "grab",
+        touchAction: "pan-y",
       }}
+      onPointerDown={onDown}
+      onPointerMove={onMove}
+      onPointerUp={onUp}
+      onPointerLeave={onUp}
     >
       <Canvas
         shadows
         dpr={[1, 1.75]}
         gl={{ antialias: true, localClippingEnabled: true }}
-        camera={{ position: [3.4, 3.6, 4.6], fov: 40 }}
-        onCreated={({ gl }) => {
+        camera={{ position: [3.5, 2.3, 4.6], fov: 40 }}
+        onCreated={({ gl, camera }) => {
           gl.localClippingEnabled = true;
+          camera.lookAt(0, -0.05, 0);
         }}
-        onError={() => setFailed(true)}
       >
         <Suspense fallback={null}>
           <Scene
             fillFrac={fillFrac}
             preFillFrac={preFillFrac}
             delta={deltaLitres ?? null}
+            dragging={dragging}
+            angle={angle}
+            onHover={setHover}
           />
         </Suspense>
       </Canvas>
+
+      {/* part label on hover */}
+      {hover && (
+        <div
+          style={{
+            position: "absolute",
+            left: 14,
+            bottom: 14,
+            background: "rgba(10,11,13,.88)",
+            color: "#fff",
+            padding: "7px 12px",
+            borderRadius: 5,
+            fontSize: 12,
+            fontWeight: 700,
+            letterSpacing: 0.3,
+            pointerEvents: "none",
+            border: "1px solid rgba(255,255,255,.14)",
+          }}
+        >
+          {hover}
+        </div>
+      )}
+
+      {/* live fill readout, always on */}
+      <div
+        style={{
+          position: "absolute",
+          right: 14,
+          top: 14,
+          background: "rgba(10,11,13,.82)",
+          color: "#fff",
+          padding: "8px 12px",
+          borderRadius: 6,
+          border: "1px solid rgba(255,255,255,.14)",
+          pointerEvents: "none",
+          textAlign: "right",
+        }}
+      >
+        <div
+          className="tnum"
+          style={{
+            fontFamily: "'Space Grotesk', sans-serif",
+            fontSize: 20,
+            fontWeight: 800,
+            lineHeight: 1.1,
+          }}
+        >
+          {Math.round(fillFrac * 100)}%
+        </div>
+        <div style={{ fontSize: 10.5, color: "#A9AEB5", marginTop: 1 }}>
+          of {fmt(CAP)} L
+        </div>
+      </div>
+
+      {/* drag affordance, retires once used */}
+      {!hasDragged && (
+        <div
+          style={{
+            position: "absolute",
+            left: 14,
+            top: 14,
+            background: "rgba(10,11,13,.7)",
+            color: "#C9CCD1",
+            padding: "6px 11px",
+            borderRadius: 5,
+            fontSize: 11,
+            fontWeight: 600,
+            pointerEvents: "none",
+          }}
+        >
+          Drag to turn · hover the parts
+        </div>
+      )}
     </div>
   );
 }

@@ -25,14 +25,15 @@ export default function TopBar({
 }) {
   return (
     <div
+      className="safe-x"
       style={{
         background: INK,
         color: "#fff",
-        padding: "0 22px",
-        height: 58,
+        minHeight: 58,
         display: "flex",
         alignItems: "center",
-        gap: 16,
+        gap: 14,
+        paddingTop: "env(safe-area-inset-top, 0px)",
       }}
     >
       <Lion />
@@ -58,13 +59,17 @@ export default function TopBar({
           FUEL MODULE
         </div>
       </div>
+      {/* the long client descriptor is the first thing to go when space is
+          tight — the logo and the role switch matter more */}
       <div
+        className="hide-sm"
         style={{
           marginLeft: 14,
           paddingLeft: 16,
           borderLeft: "1px solid #2E3238",
           fontSize: 12,
           color: "#A9AEB5",
+          whiteSpace: "nowrap",
         }}
       >
         Modern Colors Pvt Ltd · Ludhiana · Tank 1

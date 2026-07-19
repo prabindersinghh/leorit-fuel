@@ -11,7 +11,24 @@ body,
 #root {
   margin: 0;
   padding: 0;
-  height: 100%;
+  min-height: 100%;
+}
+
+/* Nothing may push the page wider than the device. Fixed-size children
+   (the 78px hero number, the WhatsApp panel, the wide tables) are handled
+   individually below; this is the backstop. */
+html,
+body {
+  max-width: 100%;
+  overflow-x: hidden;
+}
+
+/* media elements never overflow their column */
+img,
+svg,
+canvas,
+video {
+  max-width: 100%;
 }
 
 body {
@@ -46,4 +63,87 @@ button {
 ::selection {
   background: #14161a;
   color: #fff;
+}
+
+/* ── Responsive helpers ─────────────────────────────────────────
+   Desktop appearance is unchanged; these only take effect on small
+   viewports or provide touch-target floors that desktop already met. */
+
+/* every interactive control clears the 44px touch-target floor */
+button {
+  min-height: 44px;
+  touch-action: manipulation;
+}
+
+/* wide content (tables) scrolls inside its own container, with momentum
+   scrolling on iOS, instead of widening the page */
+.scroll-x {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-x: contain;
+}
+
+/* the fixed demo bar respects the iPhone home indicator */
+.safe-bottom {
+  padding-bottom: calc(12px + env(safe-area-inset-bottom, 0px));
+}
+.safe-x {
+  padding-left: calc(16px + env(safe-area-inset-left, 0px));
+  padding-right: calc(16px + env(safe-area-inset-right, 0px));
+}
+
+/* hide the long client descriptor when there is no room for it */
+@media (max-width: 560px) {
+  .hide-sm {
+    display: none !important;
+  }
+}
+
+/* On mobile the demo controls become a horizontally scrollable row and the
+   simulated-data disclaimer drops to its own full-width line beneath them.
+   The disclaimer is never hidden — it is a promise we make in writing. */
+@media (max-width: 900px) {
+  .demobar {
+    flex-wrap: wrap !important;
+    gap: 8px !important;
+    row-gap: 8px !important;
+  }
+  .demobar > button {
+    flex: 0 0 auto;
+  }
+  .demobar-note {
+    margin-left: 0 !important;
+    flex: 1 0 100%;
+    order: 99;
+    text-align: center;
+  }
+}
+
+/* Very narrow phones: the bar becomes a two-part stack — the disclaimer on
+   its own line (ALWAYS real DOM text, never a CSS pseudo-element, so it is
+   readable by screen readers and can never be silently dropped), with the
+   controls scrolling sideways beneath it at full tap size. */
+@media (max-width: 460px) {
+  .demobar {
+    flex-wrap: wrap !important;
+    align-items: center;
+  }
+  .demobar-scroll {
+    display: flex !important; /* overrides display:contents used on desktop */
+    gap: 8px;
+    width: 100%;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    padding-bottom: 2px;
+  }
+  .demobar-scroll > button {
+    flex: 0 0 auto;
+  }
+  .demobar-note {
+    margin-left: 0 !important;
+    width: 100%;
+    order: -1; /* disclaimer sits ABOVE the controls, always visible */
+    text-align: center;
+    margin-bottom: 6px;
+  }
 }
