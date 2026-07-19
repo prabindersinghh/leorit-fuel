@@ -568,7 +568,9 @@ export default function TankScene({
       style={{
         position: "relative",
         width: "100%",
-        height: "clamp(260px, 42vw, 400px)",
+        // sized against viewport HEIGHT too, so on a short laptop screen the
+        // panel does not push the rest of the dashboard below the fold
+        height: "clamp(240px, min(38vw, 34vh), 360px)",
         borderRadius: 8,
         overflow: "hidden",
         background:
